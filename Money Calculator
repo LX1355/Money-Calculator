@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محفظة المتقدمة - سحابي</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #27ae60;
+            --bg-color: #f4f7f6;
+            --danger-color: #e74c3c;
+            --accent-color: #2980b9;
+            --warning-color: #f39c12;
+        }
+        
+        * { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; margin: 0; touch-action: manipulation;
+        }
+
+        .swal2-popup { border-radius: 15px !important; padding: 1.5rem !important; }
+
+        .login-screen { position: fixed; inset: 0; background: var(--bg-color); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .login-box { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 85%; max-width: 320px; text-align: center; }
+        .pin-input { width: 100%; padding: 12px; margin: 20px 0; border: 2px solid #ddd; border-radius: 12px; font-size: 1.2rem; text-align: center; box-sizing: border-box; transition: border-color 0.3s ease; }
+
+        #mainApp { display: none; width: 100%; justify-content: center; }
+        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 95%; max-width: 380px; position: relative; }
+        .settings-icon { position: absolute; top: 20px; right: 20px; cursor: pointer; font-size: 22px; color: #95a5a6; }
+        
+        .user-header { text-align: center; margin-bottom: 5px; }
+        .user-name { color: #7f8c8d; font-size: 1rem; margin: 0; }
+        .total-label { color: #95a5a6; font-size: 0.85rem; margin-top: 2px; font-weight: bold; }
+        .total-amount { font-size: 2.3rem; font-weight: 800; color: var(--primary-color); margin: 5px 0; text-align: center; }
+        
+        .grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .money-box { background: #fff; border: 1px solid #e0e6ed; border-radius: 12px; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; transition: 0.2s; border: 1px solid #ddd; }
+        .money-box:active { transform: scale(0.95); background: #f0f0f0; }
+
+        .action-row { display: flex; gap: 8px; margin-top: 15px; }
+        .btn-small { flex: 1; padding: 12px; border-radius: 10px; background: #eee; border: 1px solid #ccc; cursor: pointer; font-weight: bold; text-align: center; transition: all 0.3s ease; }
+        
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); transform: scale(1); }
+            50% { box-shadow: 0 0 0 10px rgba(39, 174, 96, 0); transform: scale(1.05); }
+            100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); transform: scale(1); }
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); transform: scale(1); }
+            50% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); transform: scale(1.05); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: scale(1); }
+        }
+
+        .active-deposit { background-color: var(--primary-color) !important; color: white !important; border:none; animation: pulse-green 1.5s infinite; }
+        .active-withdraw { background-color: var(--danger-color) !important; color: white !important; border:none; animation: pulse-red 1.5s infinite; }
+
+        .settings-menu { display: none; position: absolute; top: 55px; right: 20px; background: white; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border-radius: 10px; z-index: 100; width: 170px; border: 1px solid #eee; }
+        .settings-menu button { background: none; border: none; padding: 12px; width: 100%; text-align: right; cursor: pointer; border-bottom: 1px solid #eee; font-family: inherit; }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; margin: 3vh auto; width: 95%; max-width: 550px; border-radius: 15px; overflow: hidden; position: relative; }
+        .modal-header { padding: 15px; background: #f8f9fa; display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px solid #eee;}
+        
+        .log-filter-tabs { display: flex; padding: 10px; background: #fff; gap: 8px; border-bottom: 1px solid #eee; }
+        .filter-tab { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: #555; transition: 0.3s; }
+        .filter-tab.active-tab { background: var(--accent-color); color: white; border-color: var(--accent-color); }
+
+        .table-container { max-height: 70vh; overflow-y: auto; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        th, td { padding: 10px 2px; border-bottom: 1px solid #eee; text-align: center; }
+
+        .admin-form { padding: 15px; background: #f9f9f9; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
+        .admin-form input { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; transition: border-color 0.3s ease; }
+        .btn-save-user { background: var(--accent-color); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        
+        .edit-cell { position: relative; display: inline-block; padding-left: 5px; }
+        .dot { position: absolute; top: -2px; left: -8px; width: 7px; height: 7px; background-color: var(--warning-color); border-radius: 50%; display: none; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .has-desc .dot { display: block; animation: blink 1s infinite ease-in-out; }
+
+        .single-input-wrapper { display: flex; flex-direction: row-reverse; align-items: center; background: #fff; border: 2px solid #ddd; border-radius: 12px; margin: 10px 0; overflow: hidden; height: 48px; }
+        .single-input-wrapper input { border: none; padding: 10px 15px; flex: 1; outline: none; font-size: 1rem; direction: rtl; font-family: inherit; }
+        .quick-toggle-unit { background: #f0f2f5; min-width: 75px; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; border-right: 2px solid #ddd; user-select: none; }
+        .quick-toggle-unit span { font-weight: 900; color: var(--accent-color); font-size: 0.9rem; }
+        .quick-toggle-unit b { font-size: 0.7rem; margin-right: 4px; color: #888; }
+        
+        .cust-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .move-btns { display: flex; gap: 5px; }
+        .move-btns button { padding: 5px 8px; border: 1px solid #ddd; background: #fff; border-radius: 5px; cursor: pointer; }
+        .support-msg { color: var(--danger-color); font-size: 0.85rem; margin-top: 10px; display: none; font-weight: bold; }
+
+        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 10px; max-height: 350px; overflow-y: auto; }
+        .color-box { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; cursor: pointer; font-size: 0.8rem; border: 1px solid rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+    <div class="login-box">
+        <h3>محفظة</h3>
+        <p>رمز الدخول</p> 
+        <input type="password" id="pinInp" class="pin-input" maxlength="20" placeholder="أدخل الرمز">
+        <button onclick="handleLogin(1)" style="width:100%; padding:12px; background:var(--primary-color); color:white; border:none; border-radius:10px; font-weight:bold;">دخول</button>
+        <p onclick="showBackup()" style="color:var(--accent-color); margin-top:15px; cursor:pointer;">هل نسيت رمز الدخول؟</p>
+    </div>
+</div>
+
+<div id="backupLoginScreen" class="login-screen" style="display:none;">
+    <div class="login-box">
+        <h3>محفظة</h3>
+        <p>الرمز الاحتياطي</p>
+        <input type="password" id="pinInp2" class="pin-input" maxlength="20" placeholder="أدخل الرمز الاحتياطي">
+        <button onclick="handleLogin(2)" style="width:100%; padding:12px; background:var(--warning-color); color:white; border:none; border-radius:10px; font-weight:bold;">دخول</button>
+        <p onclick="hideBackup()" style="color:#999; margin-top:15px; cursor:pointer;">العودة للخلف</p>
+        <p onclick="showSupportMsg()" style="color:var(--accent-color); margin-top:10px; cursor:pointer; font-size: 0.9rem;">هل نسيت الرمز الاحتياطي؟</p>
+        <div id="supportMsg" class="support-msg">يرجى التواصل مع فريق الدعم: 92986161</div>
+    </div>
+</div>
+
+<div id="mainApp">
+    <div class="card">
+        <div class="settings-icon" onclick="toggleMenu()">⚙️</div>
+        <div id="mainMenu" class="settings-menu">
+            <button onclick="openModal('logModal'); renderLogs();">سجل العمليات</button>
+            <button onclick="openModal('invModal'); renderInv();">عدد الفئة</button>
+            <button onclick="openModal('changePinModal')">تغيير رمزي</button>
+            <button id="adminBtn" style="display:none; color:var(--accent-color);" onclick="openModal('adminModal'); renderAdmin();">إدارة المستخدمين</button>
+            <button id="custBtn" style="display:none; color:var(--accent-color); font-weight:bold;" onclick="openModal('custModal'); renderCustList();">تخصيص</button>
+            <button onclick="confirmResetWallet()" style="color:var(--danger-color);">تصفير المحفظة</button>
+            <button onclick="location.reload()">تسجيل خروج</button>
+        </div>
+
+        <div class="user-header">
+            <p class="user-name" id="userTitle">محفظة: المستخدم</p>
+            <div class="total-label">الرصيد الإجمالي</div>
+        </div>
+        
+        <div class="total-amount" id="totalDisplay">0.000</div>
+        <div class="grid-container" id="mainGrid"></div>
+        <div class="action-row">
+            <button id="btnDep" class="btn-small" onclick="changeMode('deposit')">تم إيداع</button>
+            <button id="btnWith" class="btn-small" onclick="changeMode('withdraw')">تم خصم</button>
+        </div>
+    </div>
+</div>
+
+<div id="logModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><span>سجل العمليات</span><span onclick="closeModal('logModal')" style="cursor:pointer">✕</span></div>
+        <div class="log-filter-tabs">
+            <div id="tab-all" class="filter-tab active-tab" onclick="setLogFilter('all')">الكل</div>
+            <div id="tab-deposit" class="filter-tab" onclick="setLogFilter('deposit')">إيداع فقط</div>
+            <div id="tab-withdraw" class="filter-tab" onclick="setLogFilter('withdraw')">خصم فقط</div>
+        </div>
+        <div class="table-container"><table><thead><tr><th>وصف</th><th>اليوم</th><th>التاريخ</th><th>الفئة</th><th>النوع</th><th>المبلغ</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    </div>
+</div>
+
+<div id="invModal" class="modal"><div class="modal-content"><div class="modal-header"><span>عدد الفئة</span><span onclick="closeModal('invModal')">✕</span></div><div class="table-container"><table><thead><tr><th>الفئة</th><th>العدد</th><th>الصافي</th></tr></thead><tbody id="invBody"></tbody></table></div></div></div>
+<div id="changePinModal" class="modal"><div class="modal-content" style="max-width:320px; padding:20px; text-align:center; margin: 20vh auto;"><h3>تغيير رمز الدخول</h3><input type="password" id="updPin1" placeholder="أدخل الرمز الجديد" class="pin-input" style="margin:10px 0;"><div style="display:flex; gap:10px; margin-top:10px;"><button onclick="closeModal('changePinModal')" style="flex:1; padding:10px; border:none; border-radius:10px; background:#eee;">إلغاء</button><button onclick="updateMyPin()" style="flex:1; padding:10px; border:none; border-radius:10px; background:var(--primary-color); color:white;">تحديث</button></div></div></div>
+<div id="adminModal" class="modal"><div class="modal-content"><div class="modal-header"><span>إدارة المستخدمين</span><span onclick="closeModal('adminModal')" style="cursor:pointer">✕</span></div><div class="table-container"><div class="admin-form"><p id="formTitle" style="margin:0 0 10px; font-weight:bold;">+ إضافة مستخدم جديد</p><input type="text" id="newName" placeholder="اسم المستخدم"><input type="text" id="newPin1" placeholder="الرمز المطور"><input type="text" id="newPin2" placeholder="الرمز الاحتياطي"><button class="btn-save-user" id="adminSubmitBtn" onclick="saveUser()">حفظ المستخدم</button><button id="cancelEditBtn" onclick="resetAdminForm()" style="display:none; width:100%; margin-top:5px; border:none; background:#ddd; padding:8px; border-radius:8px;">إلغاء</button></div><table><thead><tr><th>الاسم</th><th>الرصيد</th><th>تعديل</th><th>حذف</th></tr></thead><tbody id="adminBody"></tbody></table></div></div></div>
+<div id="custModal" class="modal"><div class="modal-content"><div class="modal-header"><span>تخصيص (عام للجميع)</span><span onclick="closeModal('custModal')" style="cursor:pointer">✕</span></div><div class="table-container"><div style="background:#f9f9f9; padding:15px; border-radius:12px; border:1px solid #eee;"><p style="margin:0; font-weight:bold; font-size:0.9rem;">+ إضافة فئة جديدة للجميع</p><div class="single-input-wrapper"><div class="quick-toggle-unit" onclick="toggleUnit()"><span id="currentUnit">بيسة</span><b>⇅</b></div><input type="number" id="custValue"></div><button onclick="addNewCategory()" class="btn-save-user" style="background:var(--primary-color)">إضافة للكل</button></div><div id="custListBody" style="margin-top:15px;"></div></div></div></div>
+<div id="editNoteModal" class="modal"><div class="modal-content" style="max-width:300px; padding:20px; text-align:center; margin: 20vh auto;"><h3>إضافة ملاحظة</h3><input type="text" id="noteInput" style="width:90%; padding:10px; margin:10px 0; border:1px solid #ddd; border-radius:10px;"><div style="display:flex; gap:10px;"><button onclick="closeModal('editNoteModal')" style="flex:1; padding:10px; border:none; border-radius:10px;">إلغاء</button><button onclick="saveNote()" style="flex:1; padding:10px; border:none; border-radius:10px; background:var(--primary-color); color:white;">حفظ</button></div></div></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCD70vCvODz90ItiLAqEm6SpwgZ2RVnW2c",
+        authDomain: "wallet-e0832.firebaseapp.com",
+        projectId: "wallet-e0832",
+        storageBucket: "wallet-e0832.firebasestorage.app",
+        messagingSenderId: "1080828882598",
+        appId: "1:1080828882598:web:e9a6dc78bbda7e3b5bce67",
+        databaseURL: "https://wallet-e0832-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref('wallets_v1');
+
+    const defaultCats = [
+        {label: "100 ريال", val: 100}, {label: "50 ريال", val: 50},
+        {label: "20 ريال", val: 20}, {label: "10 ريال", val: 10},
+        {label: "5 ريال", val: 5}, {label: "1 ريال", val: 1},
+        {label: "نصف ريال", val: 0.5}, {label: "200 بيسة", val: 0.2}, {label: "100 بيسة", val: 0.1}
+    ];
+
+    const presetColors = [];
+    for (let i = 0; i < 100; i++) {
+        const hue = (i * 13.7) % 360; 
+        presetColors.push(`hsl(${hue}, 70%, 55%)`);
+    }
+
+    let db = [];
+    let user = null;
+    let mode = '';
+    let selectedUnit = 'بيسة';
+    let editingUserIdx = null;
+    let activeLogId = null;
+    let currentLogFilter = 'all';
+
+    dbRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) { db = data; }
+        if (user) {
+            user = db.find(u => u.name === user.name);
+            updateUI();
+            renderMainGrid();
+            if(document.getElementById('logModal').style.display === 'block') renderLogs();
+        }
+    });
+
+    function saveDB() { dbRef.set(db); }
+
+    function handleLogin(type) {
+        const inputField = type === 1 ? document.getElementById('pinInp') : document.getElementById('pinInp2');
+        const pinVal = inputField.value.trim();
+        if (pinVal === "") { Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال الرمز أولاً' }); return; }
+        const found = db.find(u => type === 1 ? u.pin === pinVal : u.pin2 === pinVal);
+        if (found) {
+            user = found;
+            if(!user.logs) user.logs = [];
+            if(!user.inv) user.inv = {};
+            if(!user.cats) user.cats = JSON.parse(JSON.stringify(defaultCats));
+            document.querySelectorAll('.login-screen').forEach(s => s.style.display='none');
+            document.getElementById('mainApp').style.display='flex';
+            document.getElementById('userTitle').innerText = "محفظة: " + user.name;
+            if(user.isAdmin) { document.getElementById('adminBtn').style.display='block'; document.getElementById('custBtn').style.display='block'; }
+            updateUI(); renderMainGrid(); changeMode('deposit');
+            Swal.fire({ icon: 'success', title: 'تم الدخول', timer: 1000, showConfirmButton: false });
+        } else { Swal.fire({ icon: 'error', title: 'الرمز خاطئ', text: 'تأكد من الرمز وحاول مجدداً' }); inputField.value = ''; }
+    }
+
+    function setLogFilter(f) {
+        currentLogFilter = f;
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active-tab'));
+        if(f==='all') document.getElementById('tab-all').classList.add('active-tab');
+        if(f==='deposit') document.getElementById('tab-deposit').classList.add('active-tab');
+        if(f==='withdraw') document.getElementById('tab-withdraw').classList.add('active-tab');
+        renderLogs();
+    }
+
+    function renderLogs() {
+        const logs = user.logs || [];
+        const filtered = logs.filter(l => {
+            if(currentLogFilter === 'all') return true;
+            return l.type === currentLogFilter;
+        });
+
+        document.getElementById('logBody').innerHTML = filtered.map(l => `
+            <tr>
+                <td><div class="edit-cell ${l.desc ? 'has-desc' : ''}"><div class="dot"></div><span style="color:var(--accent-color); font-weight:bold; cursor:pointer; text-decoration:underline;" onclick="openEditNote(${l.id})">تحرير</span></div></td>
+                <td>${l.day}</td>
+                <td>${l.date}</td>
+                <td>${l.label}</td>
+                <td style="font-weight:bold; color:${l.type==='deposit'?'#27ae60':'#e74c3c'}">${l.tLabel}</td>
+                <td style="font-weight:bold; color:${l.type==='deposit'?'#27ae60':'#e74c3c'}">${l.val}</td>
+            </tr>
+        `).join('');
+    }
+
+    function addMoney(val, label) { 
+        if(!mode || !user) return; 
+        const amt = Math.round(parseFloat(val) * 1000); 
+        if(!user.inv) user.inv = {}; 
+        if(!user.logs) user.logs = []; 
+        let currentBal = Number(user.bal || 0); 
+        if(mode === 'deposit') { user.bal = currentBal + amt; user.inv[label] = (Number(user.inv[label]) || 0) + 1; } 
+        else { user.bal = currentBal - amt; user.inv[label] = (Number(user.inv[label]) || 0) - 1; } 
+        const now = new Date(); 
+        const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']; 
+        user.logs.unshift({ id: Date.now(), desc: '', day: days[now.getDay()], date: `${now.getDate()}/${now.getMonth()+1}<span style="font-size:0.6rem; color:#7f8c8d; display:block;">/${now.getFullYear()}</span>`, label: label, type: mode, tLabel: mode === 'deposit' ? 'إيداع' : 'خصم', val: (mode==='deposit'?'+':'-')+parseFloat(val).toFixed(3) }); 
+        saveDB(); 
+        updateUI(); 
+    }
+
+    function updateUI() { if(user) { document.getElementById('totalDisplay').innerText = (Number(user.bal || 0) / 1000).toFixed(3); } }
+    function renderMainGrid() { if(!user || !user.cats) return; document.getElementById('mainGrid').innerHTML = user.cats.map(c => `<div class="money-box" style="background:${c.color || '#fff'}" onclick="addMoney(${c.val}, '${c.label}')">${c.label}</div>`).join(''); }
+    function openEditNote(id) { activeLogId = id; document.getElementById('noteInput').value = user.logs.find(x => x.id === id).desc || ''; document.getElementById('editNoteModal').style.display='block'; }
+    function saveNote() { const entry = user.logs.find(x => x.id === activeLogId); if(entry) { entry.desc = document.getElementById('noteInput').value; saveDB(); renderLogs(); closeModal('editNoteModal'); } }
+    function renderAdmin() { document.getElementById('adminBody').innerHTML = db.map((u, i) => `<tr><td>${u.name}</td><td>${(Number(u.bal || 0)/1000).toFixed(3)}</td><td><button style="background:var(--warning-color); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;" onclick="prepareEdit(${i})">تعديل</button></td><td>${u.isAdmin ? '-' : `<button style="background:var(--danger-color); color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;" onclick="deleteUser(${i})">حذف</button>`}</td></tr>`).join(''); }
+    function prepareEdit(i) { editingUserIdx = i; document.getElementById('newName').value = db[i].name; document.getElementById('newPin1').value = db[i].pin; document.getElementById('newPin2').value = db[i].pin2; document.getElementById('formTitle').innerText = "✎ تعديل: " + db[i].name; document.getElementById('adminSubmitBtn').innerText = "تحديث البيانات"; document.getElementById('cancelEditBtn').style.display = "block"; }
+    
+    // تعديل دالة الحفظ لإضافة الحواف الحمراء عند التكرار
+    function saveUser() { 
+        const nInput = document.getElementById('newName');
+        const p1Input = document.getElementById('newPin1');
+        const p2Input = document.getElementById('newPin2');
+        const n = nInput.value.trim();
+        const p1 = p1Input.value.trim();
+        const p2 = p2Input.value.trim();
+
+        p1Input.style.borderColor = '#ddd'; // تصفير اللون
+
+        if(!n || !p1) { Swal.fire('تنبيه', 'يجب إدخال الاسم والرمز', 'warning'); return; }
+
+        // فحص التكرار
+        const isDuplicate = db.some((u, index) => u.pin === p1 && (editingUserIdx === null || index !== editingUserIdx));
+
+        if(isDuplicate) {
+            p1Input.style.borderColor = 'red'; // الحواف الحمراء
+            Swal.fire('خطأ', 'رمز المطور هذا مستخدم بالفعل لمستخدم آخر!', 'error');
+            return;
+        }
+
+        if(editingUserIdx !== null) { 
+            db[editingUserIdx].name = n; db[editingUserIdx].pin = p1; db[editingUserIdx].pin2 = p2; 
+        } else { 
+            db.push({ name:n, pin:p1, pin2:p2, isAdmin:false, bal:0, inv:{}, logs:[], cats: JSON.parse(JSON.stringify(defaultCats)) }); 
+        } 
+        saveDB(); resetAdminForm(); renderAdmin(); 
+        Swal.fire({icon:'success', title:'تم الحفظ', timer:1000, showConfirmButton:false});
+    }
+
+    function resetAdminForm() { 
+        editingUserIdx = null; 
+        document.getElementById('newName').value = ''; 
+        document.getElementById('newPin1').value = ''; 
+        document.getElementById('newPin1').style.borderColor = '#ddd';
+        document.getElementById('newPin2').value = ''; 
+        document.getElementById('formTitle').innerText = "+ إضافة مستخدم جديد"; 
+        document.getElementById('adminSubmitBtn').innerText = "حفظ المستخدم"; 
+        document.getElementById('cancelEditBtn').style.display = "none"; 
+    }
+
+    function renderInv() { document.getElementById('invBody').innerHTML = user.cats.map(c => { const count = user.inv ? (Number(user.inv[c.label]) || 0) : 0; return `<tr><td>${c.label}</td><td>${count}</td><td>${(count * parseFloat(c.val)).toFixed(3)}</td></tr>`; }).join(''); }
+    
+    function showColorPicker(idx) {
+        let gridHtml = '<div class="color-grid">';
+        presetColors.forEach((color, i) => {
+            gridHtml += `<div class="color-box" style="background:${color}" onclick="setCategoryColor(${idx}, '${color}')">${i + 1}</div>`;
+        });
+        gridHtml += '</div>';
+        Swal.fire({
+            title: 'اختر لوناً',
+            html: gridHtml,
+            showDenyButton: true,
+            confirmButtonText: 'إلغاء',
+            denyButtonText: 'اللون الافتراضي',
+            denyButtonColor: '#95a5a6',
+            customClass: { denyButton: 'order-1', confirmButton: 'order-2' }
+        }).then((result) => { if (result.isDenied) setCategoryColor(idx, '#ffffff'); });
+    }
+
+    function setCategoryColor(idx, color) {
+        const targetLabel = user.cats[idx].label;
+        db.forEach(u => { if(u.cats) { const c = u.cats.find(x => x.label === targetLabel); if(c) c.color = color; } });
+        saveDB(); renderCustList(); renderMainGrid(); Swal.close();
+    }
+
+    function renderCustList() { document.getElementById('custListBody').innerHTML = user.cats.map((c, i) => `<div class="cust-item"><span>${c.label}</span><div class="move-btns"><button onclick="moveCat(${i}, -1)">↑</button><button onclick="moveCat(${i}, 1)">↓</button><button onclick="showColorPicker(${i})" style="background:var(--warning-color); color:white; border:none; padding:5px 10px; border-radius:5px;">لون</button><button onclick="deleteCat(${i})" style="color:red; border-color:red;">حذف</button></div></div>`).join(''); }
+    
+    // تعديل تحديث الرمز الشخصي لإضافة الحواف الحمراء عند التكرار
+    function updateMyPin() { 
+        const pInp = document.getElementById('updPin1');
+        const p1 = pInp.value.trim(); 
+        pInp.style.borderColor = '#ddd';
+
+        if(!p1) { Swal.fire('تنبيه', 'لا يمكن ترك الرمز فارغاً', 'warning'); return; }
+        
+        const isDuplicate = db.some(u => u.name !== user.name && u.pin === p1);
+        if(isDuplicate) {
+            pInp.style.borderColor = 'red';
+            Swal.fire('خطأ', 'هذا الرمز محجوز لمستخدم آخر!', 'error');
+            return;
+        }
+
+        user.pin = p1; 
+        saveDB(); closeModal('changePinModal'); 
+        Swal.fire('تم التحديث', 'تم تغيير رمز دخولك بنجاح', 'success'); 
+        pInp.value = ''; 
+    }
+
+    function addNewCategory() { const vInput = document.getElementById('custValue'); if(!vInput.value) return; let num = parseFloat(vInput.value); let val = (selectedUnit === 'بيسة') ? num / 1000 : num; let label = (selectedUnit === 'بيسة') ? num + " بيسة" : num + " ريال"; db.forEach(u => { if(!u.cats) u.cats = JSON.parse(JSON.stringify(defaultCats)); if (!u.cats.find(c => c.label === label)) { u.cats.push({label: label, val: val}); } }); saveDB(); renderCustList(); renderMainGrid(); vInput.value = ''; Swal.fire({ icon: 'success', title: 'تمت الإضافة للجميع', timer: 1000, showConfirmButton: false }); }
+    function deleteCat(i) { Swal.fire({title:'حذف الفئة من الجميع؟', icon:'warning', showCancelButton:true, confirmButtonText:'نعم', cancelButtonText:'إلغاء'}).then(r=>{if(r.isConfirmed){const targetLabel = user.cats[i].label; db.forEach(u => {if(u.cats) u.cats = u.cats.filter(c => c.label !== targetLabel);}); saveDB(); renderCustList(); renderMainGrid();}}); }
+    function moveCat(i, s) { let ni = i + s; if (ni >= 0 && ni < user.cats.length) { const currentList = JSON.parse(JSON.stringify(user.cats)); [currentList[i], currentList[ni]] = [currentList[ni], currentList[i]]; db.forEach(u => {u.cats = JSON.parse(JSON.stringify(currentList));}); saveDB(); renderCustList(); renderMainGrid(); } }
+    function toggleUnit() { selectedUnit = (selectedUnit === 'ريال') ? 'بيسة' : 'ريال'; document.getElementById('currentUnit').innerText = selectedUnit; }
+    function changeMode(m) { mode = m; document.getElementById('btnDep').className = 'btn-small' + (m==='deposit'?' active-deposit':''); document.getElementById('btnWith').className = 'btn-small' + (m==='withdraw'?' active-withdraw':''); }
+    function toggleMenu() { const m = document.getElementById('mainMenu'); m.style.display = (m.style.display==='block'?'none':'block'); }
+    function openModal(id) { document.getElementById(id).style.display='block'; if(id!=='editNoteModal') toggleMenu(); }
+    function closeModal(id) { document.getElementById(id).style.display='none'; }
+    function showBackup() { document.getElementById('loginScreen').style.display='none'; document.getElementById('backupLoginScreen').style.display='flex'; document.getElementById('supportMsg').style.display='none'; }
+    function hideBackup() { document.getElementById('backupLoginScreen').style.display='none'; document.getElementById('loginScreen').style.display='flex'; }
+    function showSupportMsg() { document.getElementById('supportMsg').style.display='block'; }
+
+    function confirmResetWallet() { 
+        Swal.fire({
+            title: 'هل أنت متأكد من تصفير المحفظة؟', 
+            text: 'ستفقد جميع بياناتك وسجلك بالكامل ولا يمكن التراجع عن ذلك.',
+            icon: 'warning', 
+            showCancelButton: true,
+            confirmButtonColor: '#27ae60',
+            cancelButtonColor: '#e74c3c',
+            confirmButtonText: 'نعم',
+            cancelButtonText: 'إلغاء'
+        }).then(r => {
+            if(r.isConfirmed){
+                user.bal=0; user.logs=[]; user.inv={}; saveDB(); updateUI(); toggleMenu();
+                Swal.fire({icon:'success', title:'تم التصفير', timer:1000, showConfirmButton:false});
+            }
+        }); 
+    }
+
+    function deleteUser(i) { 
+        Swal.fire({
+            title:'حذف مستخدم؟', 
+            icon:'question', 
+            showCancelButton:true,
+            confirmButtonColor: '#27ae60',
+            cancelButtonColor: '#e74c3c',
+            confirmButtonText: 'نعم',
+            cancelButtonText: 'إلغاء'
+        }).then(r=>{
+            if(r.isConfirmed){
+                db.splice(i, 1); saveDB(); renderAdmin();
+                Swal.fire({icon:'success', title:'تم الحذف', timer:1000, showConfirmButton:false});
+            }
+        }); 
+    }
+</script>
+</body>
+</html>
